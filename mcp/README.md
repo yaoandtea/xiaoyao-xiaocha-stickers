@@ -51,13 +51,18 @@ npm run smoke
 
 ## 接入 ChatGPT
 
-ChatGPT 需要一个公网可访问的 HTTPS `/mcp` 地址。本地调试可使用安全隧道，正式使用建议部署到支持 Node.js 常驻服务的平台，并把启动命令设为 `npm start`。
+ChatGPT 需要一个公网可访问的 HTTPS `/mcp` 地址。项目同时提供两种运行入口：
 
-项目已经附带 `Dockerfile` 和 `render.yaml`。部署到 Render 时可直接使用 Blueprint，部署完成后的连接地址形如：
+- `server.js`：本地 Node.js 调试，运行 `npm start`
+- `worker.js`：Cloudflare Workers 公网部署，运行 `npm run deploy:worker`
+
+Cloudflare 部署配置在 `wrangler.jsonc`。部署完成后的连接地址形如：
 
 ```text
-https://你的服务域名/mcp
+https://xiaoyao-xiaocha-sticker-mcp.你的子域名.workers.dev/mcp
 ```
+
+健康检查地址为相同域名下的 `/health`。
 
 连接后可以这样测试：
 
