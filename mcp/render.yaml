@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: xiaoyao-xiaocha-sticker-mcp
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
