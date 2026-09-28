@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小遥×小茶表情包</title>
+<style>
+body{font-family:system-ui;margin:24px;background:#fff7fb;color:#392b35}h1{text-align:center}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}.card{background:#fff;border:1px solid #f1dce8;border-radius:16px;padding:12px;text-align:center;box-shadow:0 4px 14px #d9b7ca33}.card img{width:100%;aspect-ratio:1;object-fit:contain;border-radius:10px}.name{margin-top:8px;font-weight:600}.labels{font-size:12px;color:#816b78}
+</style>
+<h1>小遥×小茶表情包</h1>
+<div id="grid" class="grid"></div>
+<script>
+fetch("./stickers.json").then(r=>r.json()).then(items=>{grid.innerHTML=items.map(x=>`<article class="card"><img src="${x.imageUrl}" alt="${x.name}"><div class="name">${x.name}</div><div class="labels">${x.labels.join(" · ")}</div></article>`).join("")})
+</script>
+</html>
