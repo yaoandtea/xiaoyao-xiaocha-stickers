@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root { color-scheme: light dark; font-family: ui-rounded, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 220px; display: grid; place-items: center; padding: 14px; background: radial-gradient(circle at 15% 10%, rgba(255,182,209,.34), transparent 42%), radial-gradient(circle at 85% 90%, rgba(215,190,255,.28), transparent 46%), transparent; }
+      .card { width: min(100%, 410px); overflow: hidden; border: 1px solid rgba(255,131,178,.28); border-radius: 24px; background: rgba(255,255,255,.88); box-shadow: 0 18px 50px rgba(113,57,86,.16); backdrop-filter: blur(16px); }
+      .picture { min-height: 180px; display: grid; place-items: center; padding: 20px; background: linear-gradient(145deg,#fff8fb,#f8f4ff); }
+      img { display: none; width: 100%; max-height: 330px; object-fit: contain; border-radius: 16px; }
+      .status { color: #9d6680; font-size: 14px; text-align: center; }
+      .details { padding: 16px 18px 18px; }
+      h1 { margin: 0; color: #6d3b54; font-size: 18px; line-height: 1.35; }
+      .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+      .tag { padding: 5px 9px; border-radius: 999px; background: #ffe8f1; color: #92526f; font-size: 12px; }
+      .ready img { display: block; }
+      .ready .status { display: none; }
+      @media (prefers-color-scheme: dark) { .card { background: rgba(42,31,39,.92); border-color: rgba(255,152,193,.25); } .picture { background: linear-gradient(145deg,#352732,#2c2938); } h1 { color: #ffd7e7; } .status { color: #d9a9bd; } .tag { background: #533446; color: #ffd4e5; } }
+    </style>
+  </head>
+  <body>
+    <article class="card" id="card" aria-live="polite">
+      <div class="picture"><div class="status" id="status">正在接住这张表情包…</div><img id="image" alt="" /></div>
+      <div class="details"><h1 id="name">小遥×小茶表情包</h1><div class="tags" id="tags"></div></div>
+    </article>
+    <script type="module">
+      const card=document.querySelector("#card"),image=document.querySelector("#image"),name=document.querySelector("#name"),tags=document.querySelector("#tags"),status=document.querySelector("#status");
+      let nextId=1; const pending=new Map();
+      const send=(message)=>window.parent.postMessage(message,"*");
+      const request=(method,params={})=>{const id=nextId++;send({jsonrpc:"2.0",id,method,params});return new Promise((resolve,reject)=>pending.set(id,{resolve,reject}));};
+      const notify=(method,params={})=>send({jsonrpc:"2.0",method,params});
+      function render(payload){const sticker=payload?.structuredContent?.sticker;if(!sticker){card.classList.remove("ready");status.textContent="这张表情包没有加载成功，再试一次就好。";return;}name.textContent=sticker.name;image.alt=sticker.name;image.src=sticker.imageUrl;image.onload=()=>card.classList.add("ready");image.onerror=()=>{card.classList.remove("ready");status.textContent="图片暂时没加载出来。";};tags.replaceChildren();for(const label of sticker.labels||[]){const chip=document.createElement("span");chip.className="tag";chip.textContent=label;tags.append(chip);}}
+      window.addEventListener("message",(event)=>{const message=event.data;if(!message||message.jsonrpc!=="2.0")return;if(typeof message.id==="number"&&pending.has(message.id)){const handler=pending.get(message.id);pending.delete(message.id);if(message.error)handler.reject(message.error);else handler.resolve(message.result);return;}if(message.method==="ui/notifications/tool-result")render(message.params);});
+      try{await request("ui/initialize",{appInfo:{name:"小遥×小茶表情包卡片",version:"0.1.0"},appCapabilities:{},protocolVersion:"2026-01-26"});notify("ui/notifications/initialized",{});}catch{status.textContent="卡片初始化失败，请重新打开。";}
+    </script>
+  </body>
+</html>

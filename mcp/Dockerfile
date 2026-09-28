@@ -6,8 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY server.js ./server.js
-COPY lib ./lib
-COPY public ./public
+COPY sticker-widget.html ./sticker-widget.html
 
 ENV NODE_ENV=production
 ENV PORT=8787

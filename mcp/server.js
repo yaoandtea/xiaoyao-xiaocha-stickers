@@ -9,15 +9,119 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { loadStickers, rankStickers } from "./lib/stickers.js";
-
 const PORT = Number(process.env.PORT || 8787);
 const RESOURCE_URI = "ui://widget/xiaoyao-xiaocha-sticker-card-v1.html";
 const IMAGE_DOMAIN = "https://yaoandtea.github.io";
+const STICKERS_URL =
+  process.env.STICKERS_URL ||
+  "https://yaoandtea.github.io/xiaoyao-xiaocha-stickers/stickers.json";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let manifestCache = { loadedAt: 0, stickers: null };
 const widgetPath = fileURLToPath(
-  new URL("./public/sticker-widget.html", import.meta.url),
+  new URL("./sticker-widget.html", import.meta.url),
 );
 const widgetHtml = readFileSync(widgetPath, "utf8");
+
+function validateManifest(value) {
+  if (!Array.isArray(value)) throw new Error("Sticker manifest must be an array.");
+
+  const seen = new Set();
+  return value.map((sticker, index) => {
+    if (!sticker || typeof sticker !== "object") {
+      throw new Error(`Sticker at index ${index} must be an object.`);
+    }
+
+    const id = String(sticker.id || "").trim();
+    const name = String(sticker.name || "").trim();
+    const imageUrl = String(sticker.imageUrl || "").trim();
+    const labels = Array.isArray(sticker.labels)
+      ? sticker.labels.map((label) => String(label).trim()).filter(Boolean)
+      : [];
+
+    if (!id || !name || !imageUrl) {
+      throw new Error(`Sticker at index ${index} is missing id, name, or imageUrl.`);
+    }
+    if (seen.has(id)) throw new Error(`Duplicate sticker id: ${id}`);
+    if (!imageUrl.startsWith("https://")) {
+      throw new Error(`Sticker ${id} must use an HTTPS imageUrl.`);
+    }
+
+    seen.add(id);
+    return { id, name, labels, imageUrl };
+  });
+}
+
+async function loadStickers() {
+  const now = Date.now();
+  if (manifestCache.stickers && now - manifestCache.loadedAt < CACHE_TTL_MS) {
+    return manifestCache.stickers;
+  }
+
+  const response = await fetch(STICKERS_URL, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Sticker manifest request failed with ${response.status}.`);
+  }
+
+  const stickers = validateManifest(await response.json());
+  manifestCache = { loadedAt: now, stickers };
+  return stickers;
+}
+
+function normalize(value) {
+  return String(value || "").toLocaleLowerCase("zh-CN").trim();
+}
+
+function queryTerms(query) {
+  return normalize(query)
+    .split(/[\s,，。.!！?？、/|;；:：]+/u)
+    .filter(Boolean);
+}
+
+function scoreSticker(sticker, query) {
+  const normalizedQuery = normalize(query);
+  const normalizedId = normalize(sticker.id);
+  const normalizedName = normalize(sticker.name);
+  const normalizedLabels = sticker.labels.map(normalize);
+  const haystack = [normalizedId, normalizedName, ...normalizedLabels].join(" ");
+
+  let score = 0;
+  if (normalizedId === normalizedQuery) score += 260;
+  if (normalizedName === normalizedQuery) score += 220;
+  if (normalizedLabels.includes(normalizedQuery)) score += 180;
+  if (normalizedName.includes(normalizedQuery)) score += 130;
+  if (normalizedLabels.some((label) => label.includes(normalizedQuery))) score += 110;
+  if (haystack.includes(normalizedQuery)) score += 70;
+
+  for (const term of queryTerms(normalizedQuery)) {
+    if (normalizedName.includes(term)) score += 35;
+    if (normalizedLabels.some((label) => label === term)) score += 45;
+    if (normalizedLabels.some((label) => label.includes(term))) score += 25;
+  }
+
+  const meaningfulChars = [...new Set([...normalizedQuery])].filter(
+    (char) => !/\s|[，。,.!！?？、]/u.test(char),
+  );
+  score += Math.min(
+    30,
+    meaningfulChars.filter((char) => haystack.includes(char)).length * 3,
+  );
+  return score;
+}
+
+function rankStickers(stickers, query, limit = 5) {
+  const safeLimit = Math.max(1, Math.min(10, Number(limit) || 5));
+  return stickers
+    .map((sticker, index) => ({
+      ...sticker,
+      score: scoreSticker(sticker, query),
+      _index: index,
+    }))
+    .sort((a, b) => b.score - a.score || a._index - b._index)
+    .slice(0, safeLimit)
+    .map(({ _index, ...sticker }) => sticker);
+}
 
 function textResult(message, structuredContent = {}) {
   return {
